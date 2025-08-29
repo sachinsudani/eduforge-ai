@@ -1,0 +1,23 @@
+{
+    "name": "eduforge-ai",
+    "private": true,
+    "version": "0.1.0",
+    "workspaces": [
+        "apps/*"
+    ],
+    "scripts": {
+        "dev": "concurrently \"npm:dev:*\"",
+        "dev:frontend": "npm --workspace apps/frontend run dev",
+        "dev:backend": "npm --workspace apps/backend run start:dev",
+        "build": "npm -ws run build",
+        "lint": "npm -ws run lint",
+        "format": "npm -ws run format",
+        "typecheck": "npm -ws run typecheck"
+    },
+    "devDependencies": {
+        "concurrently": "^9.0.0",
+        "eslint": "^8.57.0",
+        "prettier": "^3.3.3",
+        "typescript": "^5.5.4"
+    }
+}

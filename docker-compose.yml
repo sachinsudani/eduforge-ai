@@ -1,0 +1,35 @@
+version: '3.9'
+services:
+  mongo:
+    image: mongo:7
+    container_name: eduforge-mongo
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: rootpassword
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - eduforge
+
+  redis:
+    image: redis:7
+    container_name: eduforge-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - eduforge
+
+volumes:
+  mongo_data:
+  redis_data:
+
+networks:
+  eduforge:
+    driver: bridge
