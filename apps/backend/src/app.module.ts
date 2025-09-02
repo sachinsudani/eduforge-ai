@@ -13,6 +13,7 @@ import { UsersModule } from './users/users.module'
 import { ContentModule } from './content/content.module'
 import { UploadModule } from './upload/upload.module'
 import { RagModule } from './rag/rag.module'
+import { AnalyticsModule } from './analytics/analytics.module'
 
 @Module({
     imports: [
@@ -44,7 +45,8 @@ import { RagModule } from './rag/rag.module'
         UsersModule,
         ContentModule,
         UploadModule,
-        RagModule
+        RagModule,
+        AnalyticsModule
     ],
     controllers: [AppController],
     providers: [AppService]

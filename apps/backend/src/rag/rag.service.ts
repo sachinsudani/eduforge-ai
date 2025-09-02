@@ -31,7 +31,9 @@ export class RagService {
     async ingestChunksForFile(fileKey: string, videoId?: string) {
         const chunks = await this.chunkModel.find({ fileKey }).lean()
         if (chunks.length === 0) return { upserted: 0 }
+
         const vectors = [] as Array<{ id: string; values: number[]; metadata: Record<string, any> }>
+
         for (const c of chunks) {
             const emb = await this.embedText(c.text)
             vectors.push({
@@ -46,6 +48,7 @@ export class RagService {
                 }
             })
         }
+
         await this.index.upsert(vectors)
         return { upserted: vectors.length }
     }
@@ -55,8 +58,10 @@ export class RagService {
         const res = await this.index.query({
             topK,
             vector: qvec,
+
             includeMetadata: true
         })
+
         return res.matches?.map((m) => ({
             id: m.id,
             score: m.score || 0,
@@ -70,10 +75,13 @@ export class RagService {
 
     async answer(query: string, topK = 5) {
         const matches = await this.semanticSearch(query, topK)
+
         const context = matches
             .map((m, i) => `[#${i + 1}] (${m.videoId || m.fileKey} @ ${Math.floor((m.startMs || 0) / 1000)}s-${Math.floor((m.endMs || 0) / 1000)}s)\n${m.text}`)
             .join('\n\n')
+
         const prompt = `You are a helpful tutor. Answer the user's question using only the context. Cite sources as [#n] with approximate timestamps.\n\nContext:\n${context}\n\nQuestion: ${query}`
+
         const completion = await this.openai.chat.completions.create({
             model: 'gpt-4o-mini',
             messages: [
@@ -81,6 +89,7 @@ export class RagService {
                 { role: 'user', content: prompt }
             ]
         })
+
         const answer = completion.choices[0]?.message?.content || ''
         return { answer, sources: matches }
     }
