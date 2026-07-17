@@ -5,7 +5,7 @@ export type SubtitleChunkDocument = HydratedDocument<SubtitleChunk>
 
 @Schema({ timestamps: true, collection: 'subtitle_chunks', versionKey: false })
 export class SubtitleChunk {
-    @Prop({ required: true })
+    @Prop({ required: true, index: true })
     fileKey!: string
 
     @Prop({ type: Types.ObjectId, ref: 'User', index: true })

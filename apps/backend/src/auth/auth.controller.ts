@@ -14,7 +14,6 @@ export class AuthController {
             dto.firstName,
             dto.lastName,
             dto.password,
-            dto.role,
             dto.headline,
             dto.avatarUrl
         )

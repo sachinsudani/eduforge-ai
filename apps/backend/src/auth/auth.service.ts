@@ -1,24 +1,48 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common'
+import { Injectable, Logger, OnModuleInit, UnauthorizedException, ConflictException } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { Model } from 'mongoose'
 import { JwtService } from '@nestjs/jwt'
+import { ConfigService } from '@nestjs/config'
 import * as bcrypt from 'bcrypt'
 import { User, UserDocument } from '../users/schemas/user.schema'
 import { UserRole } from '../common/enums/role.enum'
 
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleInit {
+    private readonly logger = new Logger(AuthService.name)
+
     constructor(
         @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
-        private readonly jwtService: JwtService
+        private readonly jwtService: JwtService,
+        private readonly config: ConfigService
     ) { }
+
+    async onModuleInit() {
+        await this.seedAdmin()
+    }
+
+    private async seedAdmin() {
+        const email = this.config.get<string>('ADMIN_EMAIL')
+        const password = this.config.get<string>('ADMIN_PASSWORD')
+        if (!email || !password) return
+        const adminExists = await this.userModel.exists({ role: UserRole.Admin })
+        if (adminExists) return
+        const passwordHash = await bcrypt.hash(password, 10)
+        await this.userModel.create({
+            email,
+            firstName: 'Admin',
+            lastName: 'User',
+            passwordHash,
+            role: UserRole.Admin
+        })
+        this.logger.log(`Seeded initial admin account: ${email}`)
+    }
 
     async signup(
         email: string,
         firstName: string,
         lastName: string,
         password: string,
-        role: UserRole,
         headline?: string,
         avatarUrl?: string
     ) {
@@ -30,7 +54,7 @@ export class AuthService {
             firstName,
             lastName,
             passwordHash,
-            role,
+            role: UserRole.Student,
             headline,
             avatarUrl
         })

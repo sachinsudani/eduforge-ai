@@ -6,6 +6,7 @@ import { Model, Types } from 'mongoose'
 import { SubtitleChunk, SubtitleChunkDocument } from './schemas/subtitle-chunk.schema'
 import { parseSrt } from './parsers/srt.parser'
 import { parseVtt } from './parsers/vtt.parser'
+import { RagService } from '../rag/rag.service'
 
 export type UploadJobData = {
     fileKey: string
@@ -21,7 +22,8 @@ export class UploadProcessor {
     private readonly logger = new Logger(UploadProcessor.name)
     constructor(
         @InjectModel(SubtitleChunk.name)
-        private readonly chunkModel: Model<SubtitleChunkDocument>
+        private readonly chunkModel: Model<SubtitleChunkDocument>,
+        private readonly ragService: RagService
     ) { }
 
     @Process('parse-subtitles')
@@ -50,8 +52,19 @@ export class UploadProcessor {
             endMs: c.endMs
         }))
         await this.chunkModel.insertMany(docs)
-        await job.progress(100)
+        await job.progress(75)
         this.logger.log(`Stored ${docs.length} subtitle chunks for ${fileKey}`)
-        return { inserted: docs.length }
+
+        let ingested = 0
+        if (this.ragService.isConfigured) {
+            try {
+                const result = await this.ragService.ingestChunksForFile(fileKey, contentId)
+                ingested = result.upserted
+            } catch (err) {
+                this.logger.warn(`Auto-ingest failed for ${fileKey} (chunks are stored; re-ingest via POST /rag/ingest): ${err}`)
+            }
+        }
+        await job.progress(100)
+        return { inserted: docs.length, ingested }
     }
 }

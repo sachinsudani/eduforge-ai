@@ -30,7 +30,7 @@ export interface AskResponse {
 }
 
 export interface User {
-    id: string
+    _id: string
     email: string
     firstName: string
     lastName: string
@@ -182,12 +182,12 @@ class ApiClient {
 
     // Content Management
     async getSubtitleChunks(fileKey?: string): Promise<SubtitleChunk[]> {
-        const params = fileKey ? `?fileKey=${fileKey}` : ''
+        const params = fileKey ? `?fileKey=${encodeURIComponent(fileKey)}` : ''
         return this.request<SubtitleChunk[]>(`/upload/chunks${params}`)
     }
 
     async deleteSubtitleChunks(fileKey: string): Promise<void> {
-        return this.request<void>(`/upload/chunks/${fileKey}`, {
+        return this.request<void>(`/upload/chunks/${encodeURIComponent(fileKey)}`, {
             method: 'DELETE',
         })
     }

@@ -1,11 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, Filter, MoreHorizontal, Edit, Trash2, Eye } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Search, MoreHorizontal, Trash2, RefreshCw, Loader2, FileText } from 'lucide-react'
+import { toast } from 'sonner'
+import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { apiClient, SubtitleChunk } from '@/lib/api'
 import {
   Table,
   TableBody,
@@ -21,102 +25,81 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-interface ContentItem {
-  id: string
-  title: string
-  description: string
-  fileType: 'vtt' | 'srt'
-  fileSize: string
-  uploadDate: Date
-  status: 'processed' | 'processing' | 'failed'
+interface ContentFile {
+  fileKey: string
+  displayName: string
+  fileType: string
   chunks: number
-  owner: string
+  uploadDate: Date | null
+  durationMs: number
 }
 
-const mockContent: ContentItem[] = [
-  {
-    id: '1',
-    title: 'Introduction to Machine Learning',
-    description: 'Basic concepts and fundamentals of ML',
-    fileType: 'vtt',
-    fileSize: '2.3 MB',
-    uploadDate: new Date('2024-01-15'),
-    status: 'processed',
-    chunks: 156,
-    owner: 'admin@eduforge.com'
-  },
-  {
-    id: '2',
-    title: 'Deep Learning Fundamentals',
-    description: 'Neural networks and deep learning basics',
-    fileType: 'srt',
-    fileSize: '1.8 MB',
-    uploadDate: new Date('2024-01-14'),
-    status: 'processing',
-    chunks: 0,
-    owner: 'instructor@eduforge.com'
-  },
-  {
-    id: '3',
-    title: 'Data Science Workshop',
-    description: 'Hands-on data science tutorial',
-    fileType: 'vtt',
-    fileSize: '3.1 MB',
-    uploadDate: new Date('2024-01-13'),
-    status: 'failed',
-    chunks: 0,
-    owner: 'admin@eduforge.com'
-  },
-  {
-    id: '4',
-    title: 'Python Programming Basics',
-    description: 'Introduction to Python programming',
-    fileType: 'srt',
-    fileSize: '1.5 MB',
-    uploadDate: new Date('2024-01-12'),
-    status: 'processed',
-    chunks: 89,
-    owner: 'instructor@eduforge.com'
+function groupChunksByFile(chunks: SubtitleChunk[]): ContentFile[] {
+  const byFile = new Map<string, SubtitleChunk[]>()
+  for (const chunk of chunks) {
+    const list = byFile.get(chunk.fileKey) || []
+    list.push(chunk)
+    byFile.set(chunk.fileKey, list)
   }
-]
+
+  return Array.from(byFile.entries()).map(([fileKey, fileChunks]) => {
+    // fileKey format: "<timestamp>-<original filename>"
+    const match = fileKey.match(/^(\d{13})-(.*)$/)
+    const uploadDate = match ? new Date(Number(match[1])) : null
+    const displayName = match ? match[2] : fileKey
+    const extMatch = displayName.match(/\.(srt|vtt)$/i)
+    return {
+      fileKey,
+      displayName: extMatch ? displayName.slice(0, -extMatch[0].length) : displayName,
+      fileType: extMatch ? extMatch[1].toUpperCase() : '—',
+      chunks: fileChunks.length,
+      uploadDate,
+      durationMs: Math.max(...fileChunks.map((c) => c.endMs), 0),
+    }
+  }).sort((a, b) => (b.uploadDate?.getTime() || 0) - (a.uploadDate?.getTime() || 0))
+}
+
+function formatDuration(ms: number) {
+  const totalSec = Math.round(ms / 1000)
+  const min = Math.floor(totalSec / 60)
+  const sec = totalSec % 60
+  return `${min}m ${sec.toString().padStart(2, '0')}s`
+}
 
 export default function ContentManagementPage() {
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [fileTypeFilter, setFileTypeFilter] = useState<string>('all')
+  const queryClient = useQueryClient()
 
-  const filteredContent = mockContent.filter(item => {
-    const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.owner.toLowerCase().includes(searchTerm.toLowerCase())
-    
-    const matchesStatus = statusFilter === 'all' || item.status === statusFilter
-    const matchesFileType = fileTypeFilter === 'all' || item.fileType === fileTypeFilter
-
-    return matchesSearch && matchesStatus && matchesFileType
+  const { data: chunks, isLoading, error } = useQuery({
+    queryKey: ['admin-chunks'],
+    queryFn: () => apiClient.getSubtitleChunks(),
   })
 
-  const getStatusBadge = (status: ContentItem['status']) => {
-    const variants = {
-      processed: 'default',
-      processing: 'secondary',
-      failed: 'destructive'
-    } as const
+  const deleteMutation = useMutation({
+    mutationFn: (fileKey: string) => apiClient.deleteSubtitleChunks(fileKey),
+    onSuccess: () => {
+      toast.success('File and its AI index entries deleted')
+      queryClient.invalidateQueries({ queryKey: ['admin-chunks'] })
+    },
+    onError: () => toast.error('Failed to delete file'),
+  })
 
-    return (
-      <Badge variant={variants[status]}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </Badge>
-    )
+  const ingestMutation = useMutation({
+    mutationFn: (fileKey: string) => apiClient.ingestFile(fileKey),
+    onSuccess: (data) => toast.success(`Indexed ${data.upserted} sections for AI search`),
+    onError: () => toast.error('Failed to index file — check backend logs'),
+  })
+
+  const handleDelete = (file: ContentFile) => {
+    if (window.confirm(`Delete "${file.displayName}" (${file.chunks} chunks)? The AI will no longer answer from this file.`)) {
+      deleteMutation.mutate(file.fileKey)
+    }
   }
 
-  const getFileTypeBadge = (fileType: ContentItem['fileType']) => {
-    return (
-      <Badge variant="outline" className="uppercase">
-        {fileType}
-      </Badge>
-    )
-  }
+  const files = groupChunksByFile(chunks || [])
+  const filteredFiles = files.filter((f) =>
+    f.displayName.toLowerCase().includes(searchTerm.toLowerCase())
+  )
 
   return (
     <div className="p-6 space-y-6">
@@ -125,51 +108,28 @@ export default function ContentManagementPage() {
         <div>
           <h1 className="text-3xl font-bold">Content Management</h1>
           <p className="text-muted-foreground">
-            Manage uploaded subtitle files and their processing status
+            Manage uploaded subtitle files and their AI indexing
           </p>
         </div>
-        <Button>
-          Upload New Content
-        </Button>
+        <Link href="/admin/upload">
+          <Button>Upload New Content</Button>
+        </Link>
       </div>
 
-      {/* Filters */}
+      {/* Search */}
       <Card>
         <CardHeader>
-          <CardTitle>Filters & Search</CardTitle>
+          <CardTitle>Search</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-              <Input
-                placeholder="Search by title, description, or owner..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <div className="flex gap-2">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 border rounded-md text-sm"
-              >
-                <option value="all">All Status</option>
-                <option value="processed">Processed</option>
-                <option value="processing">Processing</option>
-                <option value="failed">Failed</option>
-              </select>
-              <select
-                value={fileTypeFilter}
-                onChange={(e) => setFileTypeFilter(e.target.value)}
-                className="px-3 py-2 border rounded-md text-sm"
-              >
-                <option value="all">All Types</option>
-                <option value="vtt">VTT</option>
-                <option value="srt">SRT</option>
-              </select>
-            </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+            <Input
+              placeholder="Search by file name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
           </div>
         </CardContent>
       </Card>
@@ -178,80 +138,90 @@ export default function ContentManagementPage() {
       <Card>
         <CardHeader>
           <CardTitle>
-            Content Files ({filteredContent.length})
+            Content Files ({filteredFiles.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Chunks</TableHead>
-                <TableHead>Owner</TableHead>
-                <TableHead>Upload Date</TableHead>
-                <TableHead className="w-[50px]">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredContent.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{item.title}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {item.description}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {item.fileSize}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {getFileTypeBadge(item.fileType)}
-                  </TableCell>
-                  <TableCell>
-                    {getStatusBadge(item.status)}
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-medium">{item.chunks}</span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm">{item.owner}</div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm">
-                      {item.uploadDate.toLocaleDateString()}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
-                          <Eye className="w-4 h-4 mr-2" />
-                          View Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Edit className="w-4 h-4 mr-2" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="text-red-600">
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : error ? (
+            <p className="text-sm text-destructive py-8 text-center">
+              Failed to load content. Make sure the backend is running.
+            </p>
+          ) : filteredFiles.length === 0 ? (
+            <div className="text-center py-12">
+              <FileText className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
+              <p className="text-sm text-muted-foreground">
+                No subtitle files yet. Upload one to get started.
+              </p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>File</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Chunks</TableHead>
+                  <TableHead>Duration</TableHead>
+                  <TableHead>Uploaded</TableHead>
+                  <TableHead className="w-[50px]">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredFiles.map((file) => (
+                  <TableRow key={file.fileKey}>
+                    <TableCell>
+                      <div className="font-medium max-w-md truncate" title={file.displayName}>
+                        {file.displayName}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{file.fileType}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-medium">{file.chunks}</span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">{formatDuration(file.durationMs)}</div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        {file.uploadDate ? file.uploadDate.toLocaleDateString() : '—'}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            disabled={ingestMutation.isPending}
+                            onClick={() => ingestMutation.mutate(file.fileKey)}
+                          >
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                            {ingestMutation.isPending ? 'Indexing…' : 'Re-index for AI'}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-red-600"
+                            disabled={deleteMutation.isPending}
+                            onClick={() => handleDelete(file)}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

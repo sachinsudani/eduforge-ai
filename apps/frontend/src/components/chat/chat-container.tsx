@@ -85,7 +85,7 @@ export function ChatContainer() {
                   <MessageSquare className="h-12 w-12 mb-4" />
                   <h3 className="text-lg font-semibold mb-2">Welcome to EduForge AI</h3>
                   <p className="text-sm max-w-md">
-                    Ask me anything about your educational content. I'll help you find answers with relevant sources and timestamps.
+                    Ask me anything about your educational content. I&apos;ll help you find answers with relevant sources and timestamps.
                   </p>
                 </div>
               ) : (

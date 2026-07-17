@@ -15,7 +15,7 @@ export class UploadController {
 
     @Post('subtitles')
     @UseGuards(JwtAuthGuard)
-    @UseInterceptors(FileInterceptor('file'))
+    @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
     async uploadSubtitles(@UploadedFile() file: Express.Multer.File, @Req() req: any) {
         if (!file) throw new BadRequestException('file is required')
         const mime = file.mimetype || ''
@@ -38,14 +38,14 @@ export class UploadController {
 
     @Get('chunks')
     @UseGuards(JwtAuthGuard)
-    async getSubtitleChunks(@Query('fileKey') fileKey?: string) {
-        return this.uploadService.getChunks(fileKey)
+    async getSubtitleChunks(@Req() req: any, @Query('fileKey') fileKey?: string) {
+        return this.uploadService.getChunks(req.user, fileKey)
     }
 
     @Delete('chunks/:fileKey')
     @UseGuards(JwtAuthGuard)
-    async deleteSubtitleChunks(@Param('fileKey') fileKey: string) {
-        await this.uploadService.deleteChunks(fileKey)
+    async deleteSubtitleChunks(@Req() req: any, @Param('fileKey') fileKey: string) {
+        await this.uploadService.deleteChunks(req.user, fileKey)
         return { message: 'Chunks deleted successfully' }
     }
 

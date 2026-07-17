@@ -29,13 +29,13 @@ export default function InstructorDashboard() {
   const stats = [
     {
       title: 'Total Files',
-      value: chunks?.length || 0,
+      value: new Set(chunks?.map((chunk) => chunk.fileKey)).size,
       icon: FileText,
       description: 'Uploaded subtitle files',
     },
     {
       title: 'Total Chunks',
-      value: chunks?.reduce((acc, chunk) => acc + 1, 0) || 0,
+      value: chunks?.length || 0,
       icon: TrendingUp,
       description: 'Processed text chunks',
     },

@@ -10,5 +10,8 @@ export const envValidationSchema = Joi.object({
     REDIS_PORT: Joi.number().default(6379),
     OPENAI_API_KEY: Joi.string().optional(),
     PINECONE_API_KEY: Joi.string().optional(),
-    PINECONE_INDEX: Joi.string().optional()
+    PINECONE_INDEX: Joi.string().optional(),
+    CORS_ORIGIN: Joi.string().default('http://localhost:3000'),
+    ADMIN_EMAIL: Joi.string().email().optional(),
+    ADMIN_PASSWORD: Joi.string().min(8).optional()
 })

@@ -19,28 +19,28 @@ export class ContentController {
 
     // instructor/admin only
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Role(UserRole.Instructor)
+    @Role(UserRole.Instructor, UserRole.Admin)
     @Get('mine')
     async listMine(@Req() req: any) {
         return this.contentService.findMine(req.user.userId)
     }
 
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Role(UserRole.Instructor)
+    @Role(UserRole.Instructor, UserRole.Admin)
     @Post()
     async create(@Req() req: any, @Body() dto: CreateContentDto) {
         return this.contentService.create(req.user.userId, dto)
     }
 
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Role(UserRole.Instructor)
+    @Role(UserRole.Instructor, UserRole.Admin)
     @Patch(':id')
     async update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateContentDto) {
         return this.contentService.update(req.user.userId, id, dto)
     }
 
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Role(UserRole.Instructor)
+    @Role(UserRole.Instructor, UserRole.Admin)
     @Delete(':id')
     async remove(@Req() req: any, @Param('id') id: string) {
         return this.contentService.remove(req.user.userId, id)

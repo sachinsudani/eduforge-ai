@@ -1,26 +1,37 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, NotFoundException } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { Model } from 'mongoose'
 import { SubtitleChunk, SubtitleChunkDocument } from './schemas/subtitle-chunk.schema'
 import { InjectQueue } from '@nestjs/bull'
 import { Queue } from 'bull'
+import { RagService } from '../rag/rag.service'
+import { UserRole } from '../common/enums/role.enum'
+
+type RequestUser = { userId: string; role: string }
 
 @Injectable()
 export class UploadService {
     constructor(
         @InjectModel(SubtitleChunk.name) private readonly chunkModel: Model<SubtitleChunkDocument>,
-        @InjectQueue('upload-processing') private readonly queue: Queue
+        @InjectQueue('upload-processing') private readonly queue: Queue,
+        private readonly ragService: RagService
     ) { }
 
-    async getChunks(fileKey?: string) {
-        if (fileKey) {
-            return this.chunkModel.find({ fileKey }).lean()
-        }
-        return this.chunkModel.find().lean()
+    async getChunks(user: RequestUser, fileKey?: string) {
+        const filter: Record<string, any> = {}
+        if (user.role !== UserRole.Admin) filter.ownerId = user.userId
+        if (fileKey) filter.fileKey = fileKey
+        return this.chunkModel.find(filter).lean()
     }
 
-    async deleteChunks(fileKey: string) {
-        return this.chunkModel.deleteMany({ fileKey })
+    async deleteChunks(user: RequestUser, fileKey: string) {
+        const filter: Record<string, any> = { fileKey }
+        if (user.role !== UserRole.Admin) filter.ownerId = user.userId
+        const chunks = await this.chunkModel.find(filter).select('_id').lean()
+        if (chunks.length === 0) throw new NotFoundException('No chunks found for this fileKey')
+        const ids = chunks.map((c) => String(c._id))
+        await this.ragService.deleteVectorsByIds(ids)
+        return this.chunkModel.deleteMany({ _id: { $in: ids } })
     }
 
     async getJobs() {

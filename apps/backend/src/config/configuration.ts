@@ -1,9 +1,10 @@
 export default () => ({
     port: parseInt(process.env.PORT || '3001', 10),
     jwt: {
-        secret: process.env.JWT_SECRET || 'dev-secret',
+        secret: process.env.JWT_SECRET,
         expiresIn: process.env.JWT_EXPIRES_IN || '1d'
     },
+    corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3000',
     mongo: {
         uri: process.env.MONGO_URI || 'mongodb://root:rootpassword@localhost:27017',
         dbName: process.env.MONGO_DB || 'eduforge'

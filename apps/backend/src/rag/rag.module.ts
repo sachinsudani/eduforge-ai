@@ -7,6 +7,7 @@ import { SubtitleChunk, SubtitleChunkSchema } from '../upload/schemas/subtitle-c
 @Module({
     imports: [MongooseModule.forFeature([{ name: SubtitleChunk.name, schema: SubtitleChunkSchema }])],
     controllers: [RagController],
-    providers: [RagService]
+    providers: [RagService],
+    exports: [RagService]
 })
 export class RagModule { }

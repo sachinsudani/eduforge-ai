@@ -23,6 +23,7 @@
         "@nestjs/mongoose": "^10.0.1",
         "@nestjs/passport": "^10.0.3",
         "@nestjs/platform-express": "^10.0.0",
+        "@nestjs/throttler": "^6.5.0",
         "@openai/agents": "^0.0.9",
         "@pinecone-database/pinecone": "^3.0.1",
         "@redis/client": "^1.6.0",

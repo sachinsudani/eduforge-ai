@@ -5,11 +5,13 @@ import { UploadController } from './upload.controller'
 import { UploadService } from './upload.service'
 import { UploadProcessor } from './upload.processor'
 import { SubtitleChunk, SubtitleChunkSchema } from './schemas/subtitle-chunk.schema'
+import { RagModule } from '../rag/rag.module'
 
 @Module({
     imports: [
         BullModule.registerQueue({ name: 'upload-processing' }),
-        MongooseModule.forFeature([{ name: SubtitleChunk.name, schema: SubtitleChunkSchema }])
+        MongooseModule.forFeature([{ name: SubtitleChunk.name, schema: SubtitleChunkSchema }]),
+        RagModule
     ],
     controllers: [UploadController],
     providers: [UploadService, UploadProcessor]

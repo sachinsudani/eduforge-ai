@@ -35,30 +35,30 @@ class SocketManager {
 
         // Processing job updates
         this.socket.on('job:update', (data) => {
-            this.emit('job:update', data)
+            this.notifyListeners('job:update', data)
         })
 
         this.socket.on('job:completed', (data) => {
-            this.emit('job:completed', data)
+            this.notifyListeners('job:completed', data)
         })
 
         this.socket.on('job:failed', (data) => {
-            this.emit('job:failed', data)
+            this.notifyListeners('job:failed', data)
         })
 
         // System notifications
         this.socket.on('system:notification', (data) => {
-            this.emit('system:notification', data)
+            this.notifyListeners('system:notification', data)
         })
 
         // User activity
         this.socket.on('user:activity', (data) => {
-            this.emit('user:activity', data)
+            this.notifyListeners('user:activity', data)
         })
 
         // Analytics updates
         this.socket.on('analytics:update', (data) => {
-            this.emit('analytics:update', data)
+            this.notifyListeners('analytics:update', data)
         })
     }
 
@@ -84,7 +84,7 @@ class SocketManager {
         }
     }
 
-    private emit(event: string, data: any) {
+    private notifyListeners(event: string, data: any) {
         const callbacks = this.listeners.get(event)
         if (callbacks) {
             callbacks.forEach(callback => callback(data))

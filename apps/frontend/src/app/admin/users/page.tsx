@@ -1,11 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, Plus, MoreHorizontal, Edit, Trash2, Mail, Shield } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Search, MoreHorizontal, Trash2, Mail, Shield, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { apiClient, User } from '@/lib/api'
+import { useAuth } from '@/contexts/auth-context'
 import {
   Table,
   TableBody,
@@ -21,95 +25,53 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-interface User {
-  id: string
-  email: string
-  firstName: string
-  lastName: string
-  role: 'student' | 'instructor' | 'admin'
-  status: 'active' | 'inactive' | 'pending'
-  joinDate: Date
-  lastLogin?: Date
-  totalQueries: number
-  headline?: string
-}
-
-const mockUsers: User[] = [
-  {
-    id: '1',
-    email: 'john.doe@example.com',
-    firstName: 'John',
-    lastName: 'Doe',
-    role: 'student',
-    status: 'active',
-    joinDate: new Date('2024-01-01'),
-    lastLogin: new Date('2024-01-16'),
-    totalQueries: 45,
-    headline: 'Computer Science Student'
-  },
-  {
-    id: '2',
-    email: 'jane.smith@example.com',
-    firstName: 'Jane',
-    lastName: 'Smith',
-    role: 'instructor',
-    status: 'active',
-    joinDate: new Date('2023-12-15'),
-    lastLogin: new Date('2024-01-16'),
-    totalQueries: 12,
-    headline: 'Machine Learning Instructor'
-  },
-  {
-    id: '3',
-    email: 'admin@eduforge.com',
-    firstName: 'Admin',
-    lastName: 'User',
-    role: 'admin',
-    status: 'active',
-    joinDate: new Date('2023-11-01'),
-    lastLogin: new Date('2024-01-16'),
-    totalQueries: 8
-  },
-  {
-    id: '4',
-    email: 'bob.wilson@example.com',
-    firstName: 'Bob',
-    lastName: 'Wilson',
-    role: 'student',
-    status: 'inactive',
-    joinDate: new Date('2024-01-05'),
-    lastLogin: new Date('2024-01-10'),
-    totalQueries: 23
-  },
-  {
-    id: '5',
-    email: 'alice.johnson@example.com',
-    firstName: 'Alice',
-    lastName: 'Johnson',
-    role: 'instructor',
-    status: 'pending',
-    joinDate: new Date('2024-01-14'),
-    totalQueries: 0,
-    headline: 'Data Science Expert'
-  }
-]
+const ROLES: User['role'][] = ['student', 'instructor', 'admin']
 
 export default function UserManagementPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('all')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const { user: currentUser } = useAuth()
+  const queryClient = useQueryClient()
 
-  const filteredUsers = mockUsers.filter(user => {
-    const matchesSearch = 
-      user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.headline?.toLowerCase().includes(searchTerm.toLowerCase())
-    
+  const { data: users, isLoading, error } = useQuery({
+    queryKey: ['admin-users'],
+    queryFn: () => apiClient.getUsers(),
+  })
+
+  const updateRoleMutation = useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: string }) =>
+      apiClient.updateUserRole(userId, role),
+    onSuccess: (_, { role }) => {
+      toast.success(`Role updated to ${role}`)
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+    },
+    onError: () => toast.error('Failed to update role'),
+  })
+
+  const deleteUserMutation = useMutation({
+    mutationFn: (userId: string) => apiClient.deleteUser(userId),
+    onSuccess: () => {
+      toast.success('User deleted')
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+    },
+    onError: () => toast.error('Failed to delete user'),
+  })
+
+  const handleDelete = (user: User) => {
+    if (window.confirm(`Delete ${user.email}? This cannot be undone.`)) {
+      deleteUserMutation.mutate(user._id)
+    }
+  }
+
+  const filteredUsers = (users || []).filter(user => {
+    const term = searchTerm.toLowerCase()
+    const matchesSearch =
+      user.firstName.toLowerCase().includes(term) ||
+      user.lastName.toLowerCase().includes(term) ||
+      user.email.toLowerCase().includes(term) ||
+      user.headline?.toLowerCase().includes(term)
     const matchesRole = roleFilter === 'all' || user.role === roleFilter
-    const matchesStatus = statusFilter === 'all' || user.status === statusFilter
-
-    return matchesSearch && matchesRole && matchesStatus
+    return matchesSearch && matchesRole
   })
 
   const getRoleBadge = (role: User['role']) => {
@@ -122,20 +84,6 @@ export default function UserManagementPage() {
     return (
       <Badge variant={variants[role]}>
         {role.charAt(0).toUpperCase() + role.slice(1)}
-      </Badge>
-    )
-  }
-
-  const getStatusBadge = (status: User['status']) => {
-    const variants = {
-      active: 'default',
-      inactive: 'secondary',
-      pending: 'outline'
-    } as const
-
-    return (
-      <Badge variant={variants[status]}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
       </Badge>
     )
   }
@@ -161,10 +109,6 @@ export default function UserManagementPage() {
             Manage platform users and their permissions
           </p>
         </div>
-        <Button>
-          <Plus className="w-4 h-4 mr-2" />
-          Add User
-        </Button>
       </div>
 
       {/* Filters */}
@@ -183,28 +127,16 @@ export default function UserManagementPage() {
                 className="pl-10"
               />
             </div>
-            <div className="flex gap-2">
-              <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-                className="px-3 py-2 border rounded-md text-sm"
-              >
-                <option value="all">All Roles</option>
-                <option value="admin">Admin</option>
-                <option value="instructor">Instructor</option>
-                <option value="student">Student</option>
-              </select>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 border rounded-md text-sm"
-              >
-                <option value="all">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="pending">Pending</option>
-              </select>
-            </div>
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="px-3 py-2 border rounded-md text-sm bg-background"
+            >
+              <option value="all">All Roles</option>
+              <option value="admin">Admin</option>
+              <option value="instructor">Instructor</option>
+              <option value="student">Student</option>
+            </select>
           </div>
         </CardContent>
       </Card>
@@ -217,88 +149,97 @@ export default function UserManagementPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>User</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Queries</TableHead>
-                <TableHead>Join Date</TableHead>
-                <TableHead>Last Login</TableHead>
-                <TableHead className="w-[50px]">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredUsers.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      {getRoleIcon(user.role)}
-                      <div>
-                        <div className="font-medium">
-                          {user.firstName} {user.lastName}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {user.email}
-                        </div>
-                        {user.headline && (
-                          <div className="text-xs text-muted-foreground">
-                            {user.headline}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {getRoleBadge(user.role)}
-                  </TableCell>
-                  <TableCell>
-                    {getStatusBadge(user.status)}
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-medium">{user.totalQueries}</span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm">
-                      {user.joinDate.toLocaleDateString()}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm">
-                      {user.lastLogin 
-                        ? user.lastLogin.toLocaleDateString()
-                        : 'Never'
-                      }
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
-                          <Edit className="w-4 h-4 mr-2" />
-                          Edit User
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Mail className="w-4 h-4 mr-2" />
-                          Send Message
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="text-red-600">
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete User
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : error ? (
+            <p className="text-sm text-destructive py-8 text-center">
+              Failed to load users. Make sure you are logged in as an admin.
+            </p>
+          ) : filteredUsers.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">
+              No users found
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Joined</TableHead>
+                  <TableHead className="w-[50px]">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredUsers.map((user) => {
+                  const isSelf = currentUser?.email === user.email
+                  return (
+                    <TableRow key={user._id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          {getRoleIcon(user.role)}
+                          <div>
+                            <div className="font-medium">
+                              {user.firstName} {user.lastName}
+                              {isSelf && (
+                                <span className="ml-2 text-xs text-muted-foreground">(you)</span>
+                              )}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {user.email}
+                            </div>
+                            {user.headline && (
+                              <div className="text-xs text-muted-foreground">
+                                {user.headline}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {getRoleBadge(user.role)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">
+                          {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '—'}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {ROLES.filter((r) => r !== user.role).map((role) => (
+                              <DropdownMenuItem
+                                key={role}
+                                disabled={isSelf || updateRoleMutation.isPending}
+                                onClick={() => updateRoleMutation.mutate({ userId: user._id, role })}
+                              >
+                                <Shield className="w-4 h-4 mr-2" />
+                                Make {role}
+                              </DropdownMenuItem>
+                            ))}
+                            <DropdownMenuItem
+                              className="text-red-600"
+                              disabled={isSelf || deleteUserMutation.isPending}
+                              onClick={() => handleDelete(user)}
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete User
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common'
+import { APP_GUARD } from '@nestjs/core'
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler'
 import { ConfigModule } from '@nestjs/config'
 import configuration from './config/configuration'
 import { envValidationSchema } from './config/validation'
@@ -41,6 +43,7 @@ import { AnalyticsModule } from './analytics/analytics.module'
                 port: Number(process.env.REDIS_PORT || 6379)
             }
         }),
+        ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }]),
         AuthModule,
         UsersModule,
         ContentModule,
@@ -49,6 +52,6 @@ import { AnalyticsModule } from './analytics/analytics.module'
         AnalyticsModule
     ],
     controllers: [AppController],
-    providers: [AppService]
+    providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }]
 })
 export class AppModule { }
