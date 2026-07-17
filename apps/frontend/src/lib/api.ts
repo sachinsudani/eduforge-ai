@@ -152,12 +152,6 @@ class ApiClient {
         return this.request<User>('/users/me')
     }
 
-    // RAG Operations
-    async askQuestion(query: string, topK: number = 5): Promise<AskResponse> {
-        const params = new URLSearchParams({ q: query, k: topK.toString() })
-        return this.request<AskResponse>(`/rag/ask?${params}`)
-    }
-
     // Streams the answer token-by-token. Sources arrive first, then text deltas.
     async askQuestionStream(
         query: string,

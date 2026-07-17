@@ -120,8 +120,7 @@ Frontend at `http://localhost:3000`, API at `http://localhost:3001/api`.
 | `GET /api/upload/jobs` | any user | Processing job status |
 | `GET /api/upload/chunks` · `DELETE /api/upload/chunks/:fileKey` | owner (admin: all) | Browse / delete parsed content + its vectors |
 | `POST /api/rag/ingest` | instructor/admin | Re-index a file's chunks into Pinecone |
-| `GET /api/rag/ask?q=...` | any user | Ask a question → grounded answer + cited sources |
-| `POST /api/rag/ask/stream` | any user | Streaming ask (NDJSON: sources event, then token deltas) with chat history |
+| `POST /api/rag/ask/stream` | any user | Ask a question → streamed grounded answer (NDJSON: sources, then token deltas) with chat history |
 
 Global rate limit: 60 requests/minute per IP.
 

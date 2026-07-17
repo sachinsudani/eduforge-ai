@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
-import { Model } from 'mongoose'
-import { SubtitleChunk, SubtitleChunkDocument } from '../upload/schemas/subtitle-chunk.schema'
-import OpenAI from 'openai'
 import { Pinecone } from '@pinecone-database/pinecone'
+import { Model } from 'mongoose'
+import OpenAI from 'openai'
+import { SubtitleChunk, SubtitleChunkDocument } from '../upload/schemas/subtitle-chunk.schema'
 
 const EMBEDDING_DIMENSIONS = 1024
 const WINDOW_MAX_CHARS = 800
@@ -157,21 +157,6 @@ export class RagService {
             .join('\n\n')
 
         return `You are a helpful tutor. Answer the user's question using only the context. Cite sources as [#n] with approximate timestamps.\n\nContext:\n${context}\n\nQuestion: ${query}`
-    }
-
-    async answer(query: string, topK = 5) {
-        const matches = await this.semanticSearch(query, topK)
-
-        const completion = await this.openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [
-                { role: 'system', content: 'You are a helpful AI tutor.' },
-                { role: 'user', content: this.buildPrompt(query, matches) }
-            ]
-        })
-
-        const answer = completion.choices[0]?.message?.content || ''
-        return { answer, sources: matches }
     }
 
     async answerStream(
