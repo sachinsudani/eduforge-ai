@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
-import { HydratedDocument, Types } from 'mongoose'
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose'
 
 export type SubtitleChunkDocument = HydratedDocument<SubtitleChunk>
 
@@ -8,10 +8,10 @@ export class SubtitleChunk {
     @Prop({ required: true, index: true })
     fileKey!: string
 
-    @Prop({ type: Types.ObjectId, ref: 'User', index: true })
+    @Prop({ type: SchemaTypes.ObjectId, ref: 'User', index: true })
     ownerId!: Types.ObjectId
 
-    @Prop({ type: Types.ObjectId, ref: 'Content', index: true, required: false })
+    @Prop({ type: SchemaTypes.ObjectId, ref: 'Content', index: true, required: false })
     contentId?: Types.ObjectId
 
     @Prop({ required: true })

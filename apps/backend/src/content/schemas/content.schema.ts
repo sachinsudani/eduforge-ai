@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
-import { HydratedDocument, Types } from 'mongoose'
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose'
 
 export type ContentDocument = HydratedDocument<Content>
 
@@ -11,7 +11,7 @@ export class Content {
 	@Prop()
 	description?: string
 
-	@Prop({ type: Types.ObjectId, ref: 'User', index: true })
+	@Prop({ type: SchemaTypes.ObjectId, ref: 'User', index: true })
 	ownerId!: Types.ObjectId
 
 	@Prop({ type: [String], default: [] })
