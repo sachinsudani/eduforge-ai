@@ -29,13 +29,18 @@ export class UploadProcessor {
         const { fileKey, ownerId, contentId, mimeType, bufferBase64 } = job.data
         const buffer = Buffer.from(bufferBase64, 'base64')
         const text = buffer.toString('utf-8')
+        await job.progress(25)
         let chunks
         if (mimeType.includes('vtt') || fileKey.toLowerCase().endsWith('.vtt')) {
             chunks = parseVtt(text)
         } else {
             chunks = parseSrt(text)
         }
-        if (!chunks || chunks.length === 0) return { inserted: 0 }
+        await job.progress(50)
+        if (!chunks || chunks.length === 0) {
+            await job.progress(100)
+            return { inserted: 0 }
+        }
         const docs = chunks.map((c) => ({
             fileKey,
             ownerId: new Types.ObjectId(ownerId),
@@ -45,6 +50,7 @@ export class UploadProcessor {
             endMs: c.endMs
         }))
         await this.chunkModel.insertMany(docs)
+        await job.progress(100)
         this.logger.log(`Stored ${docs.length} subtitle chunks for ${fileKey}`)
         return { inserted: docs.length }
     }

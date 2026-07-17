@@ -29,6 +29,9 @@ export class UploadController {
             ownerId: req.user.userId,
             mimeType: mime,
             bufferBase64: file.buffer.toString('base64')
+        }, {
+            removeOnComplete: { age: 24 * 3600, count: 100 },
+            removeOnFail: { age: 7 * 24 * 3600 }
         })
         return { queued: true, fileKey }
     }
