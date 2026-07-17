@@ -1,18 +1,20 @@
-version: '3.9'
 services:
-  # mongo:
-  #   image: mongo:7
-  #   container_name: eduforge-mongo
-  #   restart: unless-stopped
-  #   ports:
-  #     - '27017:27017'
-  #   environment:
-  #     MONGO_INITDB_ROOT_USERNAME: root
-  #     MONGO_INITDB_ROOT_PASSWORD: rootpassword
-  #   volumes:
-  #     - mongo_data:/data/db
-  #   networks:
-  #     - eduforge
+  # Behind a profile so `docker compose up` doesn't clash with a locally
+  # installed MongoDB on 27017. Start with --profile db (or --profile full).
+  mongo:
+    image: mongo:7
+    container_name: eduforge-mongo
+    profiles: ['db', 'full']
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: rootpassword
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - eduforge
 
   redis:
     image: redis:7
@@ -23,6 +25,53 @@ services:
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
+    networks:
+      - eduforge
+
+  # Full-stack services — start with: docker compose --profile full up --build
+  # Default `docker compose up` starts only mongo + redis for local development.
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    container_name: eduforge-backend
+    profiles: ['full']
+    restart: unless-stopped
+    depends_on:
+      - mongo
+      - redis
+    environment:
+      PORT: 3001
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in your shell or a root .env file}
+      JWT_EXPIRES_IN: 1d
+      MONGO_URI: mongodb://root:rootpassword@mongo:27017/?authSource=admin
+      MONGO_DB: eduforge
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      PINECONE_API_KEY: ${PINECONE_API_KEY:-}
+      PINECONE_INDEX: ${PINECONE_INDEX:-eduforge-subtitles}
+      CORS_ORIGIN: http://localhost:3000
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    ports:
+      - '3001:3001'
+    networks:
+      - eduforge
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3001/api
+    container_name: eduforge-frontend
+    profiles: ['full']
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '3000:3000'
     networks:
       - eduforge
 

@@ -22,7 +22,6 @@ coverage/
 
 # Env
 .env
-.env.*
 
 # Docker
 .docker/
