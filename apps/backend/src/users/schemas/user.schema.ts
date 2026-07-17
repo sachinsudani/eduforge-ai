@@ -4,7 +4,7 @@ import { UserRole } from '../../common/enums/role.enum'
 
 export type UserDocument = HydratedDocument<User>
 
-@Schema({ timestamps: true })
+@Schema({ timestamps: true, versionKey: false })
 export class User {
     @Prop({ required: true, unique: true, lowercase: true, index: true })
     email!: string

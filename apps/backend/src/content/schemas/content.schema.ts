@@ -3,7 +3,7 @@ import { HydratedDocument, Types } from 'mongoose'
 
 export type ContentDocument = HydratedDocument<Content>
 
-@Schema({ timestamps: true })
+@Schema({ timestamps: true, versionKey: false })
 export class Content {
 	@Prop({ required: true })
 	title!: string
