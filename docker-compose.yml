@@ -1,18 +1,18 @@
 version: '3.9'
 services:
-  mongo:
-    image: mongo:7
-    container_name: eduforge-mongo
-    restart: unless-stopped
-    ports:
-      - '27017:27017'
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: rootpassword
-    volumes:
-      - mongo_data:/data/db
-    networks:
-      - eduforge
+  # mongo:
+  #   image: mongo:7
+  #   container_name: eduforge-mongo
+  #   restart: unless-stopped
+  #   ports:
+  #     - '27017:27017'
+  #   environment:
+  #     MONGO_INITDB_ROOT_USERNAME: root
+  #     MONGO_INITDB_ROOT_PASSWORD: rootpassword
+  #   volumes:
+  #     - mongo_data:/data/db
+  #   networks:
+  #     - eduforge
 
   redis:
     image: redis:7
