@@ -16,6 +16,11 @@ export interface ChatMessage {
     }>
 }
 
+export interface ChatHistoryMessage {
+    role: 'user' | 'assistant'
+    content: string
+}
+
 export interface AskResponse {
     answer: string
     sources: Array<{
@@ -151,6 +156,49 @@ class ApiClient {
     async askQuestion(query: string, topK: number = 5): Promise<AskResponse> {
         const params = new URLSearchParams({ q: query, k: topK.toString() })
         return this.request<AskResponse>(`/rag/ask?${params}`)
+    }
+
+    // Streams the answer token-by-token. Sources arrive first, then text deltas.
+    async askQuestionStream(
+        query: string,
+        history: ChatHistoryMessage[],
+        handlers: {
+            onSources: (sources: AskResponse['sources']) => void
+            onDelta: (text: string) => void
+        }
+    ): Promise<void> {
+        const response = await fetch(`${API_BASE}/rag/ask/stream`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...this.getAuthHeaders(),
+            },
+            body: JSON.stringify({ q: query, history }),
+        })
+
+        if (!response.ok || !response.body) {
+            const errorText = await response.text()
+            throw new Error(`API request failed: ${response.status} - ${errorText}`)
+        }
+
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+
+        while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split('\n')
+            buffer = lines.pop() || ''
+            for (const line of lines) {
+                if (!line.trim()) continue
+                const event = JSON.parse(line)
+                if (event.type === 'sources') handlers.onSources(event.sources)
+                else if (event.type === 'delta') handlers.onDelta(event.text)
+                else if (event.type === 'error') throw new Error(event.message)
+            }
+        }
     }
 
     async ingestFile(fileKey: string, videoId?: string): Promise<{ upserted: number }> {

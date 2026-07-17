@@ -1,64 +1,75 @@
 'use client'
 
-import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ChatMessage, apiClient } from '@/lib/api'
-import { ChatInput } from './chat-input'
-import { ChatHistory } from './chat-history'
 import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { ChatMessage, apiClient } from '@/lib/api'
 import { Loader2, MessageSquare } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { toast } from 'sonner'
+import { ChatHistory } from './chat-history'
+import { ChatInput } from './chat-input'
+
+function formatTimestamp(ms: number) {
+  const totalSec = Math.floor(ms / 1000)
+  const min = Math.floor(totalSec / 60)
+  const sec = totalSec % 60
+  return `${min}:${sec.toString().padStart(2, '0')}`
+}
 
 export function ChatContainer() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
-  const queryClient = useQueryClient()
+  const bottomRef = useRef<HTMLDivElement>(null)
 
-  const askQuestionMutation = useMutation({
-    mutationFn: (query: string) => apiClient.askQuestion(query),
-    onSuccess: (data) => {
-      const newMessage: ChatMessage = {
-        id: Date.now().toString(),
-        role: 'assistant',
-        content: data.answer,
-        timestamp: new Date(),
-        sources: data.sources
-      }
-      setMessages(prev => [...prev, newMessage])
-      setIsStreaming(false)
-    },
-    onError: (error: any) => {
-      console.error('Failed to get answer:', error)
-      const errorMessage: ChatMessage = {
-        id: Date.now().toString(),
-        role: 'assistant',
-        content: 'Sorry, I encountered an error while processing your question. Please try again.',
-        timestamp: new Date()
-      }
-      setMessages(prev => [...prev, errorMessage])
-      setIsStreaming(false)
-      toast.error('Failed to get answer. Please try again.')
-    }
-  })
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  const updateMessage = (id: string, patch: Partial<ChatMessage> | ((m: ChatMessage) => Partial<ChatMessage>)) => {
+    setMessages(prev =>
+      prev.map(m => (m.id === id ? { ...m, ...(typeof patch === 'function' ? patch(m) : patch) } : m))
+    )
+  }
 
   const handleSendMessage = async (content: string) => {
-    if (!content.trim()) return
+    if (!content.trim() || isStreaming) return
+
+    const history = messages
+      .filter(m => m.content)
+      .slice(-6)
+      .map(m => ({ role: m.role, content: m.content }))
 
     const userMessage: ChatMessage = {
-      id: Date.now().toString(),
+      id: `${Date.now()}-user`,
       role: 'user',
       content,
-      timestamp: new Date()
+      timestamp: new Date(),
+    }
+    const assistantId = `${Date.now()}-assistant`
+    const assistantMessage: ChatMessage = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date(),
     }
 
-    setMessages(prev => [...prev, userMessage])
+    setMessages(prev => [...prev, userMessage, assistantMessage])
     setIsStreaming(true)
 
     try {
-      await askQuestionMutation.mutateAsync(content)
+      await apiClient.askQuestionStream(content, history, {
+        onSources: (sources) => updateMessage(assistantId, { sources }),
+        onDelta: (text) => updateMessage(assistantId, (m) => ({ content: m.content + text })),
+      })
     } catch (error) {
-      console.error('Error sending message:', error)
+      console.error('Failed to get answer:', error)
+      updateMessage(assistantId, {
+        content: 'Sorry, I encountered an error while processing your question. Please try again.',
+        sources: undefined,
+      })
+      toast.error('Failed to get answer. Please try again.')
+    } finally {
+      setIsStreaming(false)
     }
   }
 
@@ -101,16 +112,31 @@ export function ChatContainer() {
                           : 'bg-muted'
                       }`}
                     >
-                      <p className="text-sm">{message.content}</p>
+                      {message.role === 'assistant' ? (
+                        message.content ? (
+                          <div className="text-sm space-y-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_code]:bg-background/60 [&_code]:px-1 [&_code]:rounded">
+                            <ReactMarkdown>{message.content}</ReactMarkdown>
+                          </div>
+                        ) : (
+                          <div className="flex items-center space-x-2 py-1">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span className="text-sm text-muted-foreground">
+                              {message.sources ? 'Generating answer…' : 'Searching course content…'}
+                            </span>
+                          </div>
+                        )
+                      ) : (
+                        <p className="text-sm">{message.content}</p>
+                      )}
                       {message.sources && message.sources.length > 0 && (
                         <div className="mt-2 pt-2 border-t border-border">
                           <p className="text-xs text-muted-foreground mb-1">Sources:</p>
                           {message.sources.map((source, index) => (
                             <div key={index} className="text-xs text-muted-foreground">
                               <span className="font-medium">[{index + 1}]</span> {source.text.substring(0, 100)}...
-                              {source.startMs && (
+                              {source.startMs !== undefined && (
                                 <span className="ml-2">
-                                  ({Math.floor(source.startMs / 1000)}s)
+                                  ({formatTimestamp(source.startMs)}–{formatTimestamp(source.endMs)})
                                 </span>
                               )}
                             </div>
@@ -121,17 +147,7 @@ export function ChatContainer() {
                   </div>
                 ))
               )}
-              
-              {isStreaming && (
-                <div className="flex justify-start">
-                  <div className="bg-muted rounded-lg px-4 py-2">
-                    <div className="flex items-center space-x-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-sm">Thinking...</span>
-                    </div>
-                  </div>
-                </div>
-              )}
+              <div ref={bottomRef} />
             </div>
 
             {/* Input Area */}

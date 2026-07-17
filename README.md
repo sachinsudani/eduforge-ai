@@ -6,7 +6,7 @@ Built as a from-scratch RAG (Retrieval-Augmented Generation) pipeline — no Lan
 
 ## Features
 
-- **Grounded AI chat** — questions are answered from uploaded course content only, with `[#n]` citations and timestamps
+- **Grounded AI chat** — questions are answered from uploaded course content only, with `[#n]` citations and timestamps; answers stream token-by-token with multi-turn conversation memory
 - **Async ingestion pipeline** — uploads are parsed in background workers (Bull/Redis), never blocking the API
 - **Semantic windowing** — subtitle cues are merged into ~45-second overlapping windows before embedding, dramatically improving retrieval over cue-level chunks
 - **Role-based access** — student / instructor / admin roles enforced by JWT guards; instructors manage their own content, admins manage everything
@@ -121,6 +121,7 @@ Frontend at `http://localhost:3000`, API at `http://localhost:3001/api`.
 | `GET /api/upload/chunks` · `DELETE /api/upload/chunks/:fileKey` | owner (admin: all) | Browse / delete parsed content + its vectors |
 | `POST /api/rag/ingest` | instructor/admin | Re-index a file's chunks into Pinecone |
 | `GET /api/rag/ask?q=...` | any user | Ask a question → grounded answer + cited sources |
+| `POST /api/rag/ask/stream` | any user | Streaming ask (NDJSON: sources event, then token deltas) with chat history |
 
 Global rate limit: 60 requests/minute per IP.
 
@@ -150,4 +151,3 @@ apps/
 - [ ] Query logging → real analytics dashboard
 - [ ] Link uploads to content records (titles/descriptions instead of filenames)
 - [ ] WebSocket gateway for live job updates (currently polling)
-- [ ] Streaming chat responses

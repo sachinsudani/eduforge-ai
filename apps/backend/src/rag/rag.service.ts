@@ -151,24 +151,52 @@ export class RagService {
         })) || []
     }
 
-    async answer(query: string, topK = 5) {
-        const matches = await this.semanticSearch(query, topK)
-
+    private buildPrompt(query: string, matches: Awaited<ReturnType<RagService['semanticSearch']>>) {
         const context = matches
             .map((m, i) => `[#${i + 1}] (${m.videoId || m.fileKey} @ ${Math.floor((m.startMs || 0) / 1000)}s-${Math.floor((m.endMs || 0) / 1000)}s)\n${m.text}`)
             .join('\n\n')
 
-        const prompt = `You are a helpful tutor. Answer the user's question using only the context. Cite sources as [#n] with approximate timestamps.\n\nContext:\n${context}\n\nQuestion: ${query}`
+        return `You are a helpful tutor. Answer the user's question using only the context. Cite sources as [#n] with approximate timestamps.\n\nContext:\n${context}\n\nQuestion: ${query}`
+    }
+
+    async answer(query: string, topK = 5) {
+        const matches = await this.semanticSearch(query, topK)
 
         const completion = await this.openai.chat.completions.create({
             model: 'gpt-4o-mini',
             messages: [
                 { role: 'system', content: 'You are a helpful AI tutor.' },
-                { role: 'user', content: prompt }
+                { role: 'user', content: this.buildPrompt(query, matches) }
             ]
         })
 
         const answer = completion.choices[0]?.message?.content || ''
         return { answer, sources: matches }
+    }
+
+    async answerStream(
+        query: string,
+        topK: number,
+        history: Array<{ role: 'user' | 'assistant'; content: string }>,
+        emit: (event: Record<string, any>) => void
+    ) {
+        const matches = await this.semanticSearch(query, topK)
+        emit({ type: 'sources', sources: matches })
+
+        const stream = await this.openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            stream: true,
+            messages: [
+                { role: 'system', content: 'You are a helpful AI tutor.' },
+                ...history.slice(-6),
+                { role: 'user', content: this.buildPrompt(query, matches) }
+            ]
+        })
+
+        for await (const chunk of stream) {
+            const delta = chunk.choices[0]?.delta?.content
+            if (delta) emit({ type: 'delta', text: delta })
+        }
+        emit({ type: 'done' })
     }
 }
