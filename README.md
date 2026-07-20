@@ -7,6 +7,8 @@ Built as a from-scratch RAG (Retrieval-Augmented Generation) pipeline — no Lan
 ## Features
 
 - **Grounded AI chat** — questions are answered from uploaded course content only, with `[#n]` citations and timestamps; answers stream token-by-token with multi-turn conversation memory
+- **Retrieval guardrails** — an empirically calibrated relevance threshold filters weak matches; off-topic questions get an honest "not covered" instead of fabricated citations, and greetings skip sources entirely
+- **Query observability** — every question is logged with its top relevance score, grounding outcome, and latency
 - **Async ingestion pipeline** — uploads are parsed in background workers (Bull/Redis), never blocking the API
 - **Semantic windowing** — subtitle cues are merged into ~45-second overlapping windows before embedding, dramatically improving retrieval over cue-level chunks
 - **Role-based access** — student / instructor / admin roles enforced by JWT guards; instructors manage their own content, admins manage everything
@@ -147,6 +149,6 @@ apps/
 
 ## Roadmap
 
-- [ ] Query logging → real analytics dashboard
+- [ ] Wire the admin analytics dashboard to the query logs
 - [ ] Link uploads to content records (titles/descriptions instead of filenames)
 - [ ] WebSocket gateway for live job updates (currently polling)
